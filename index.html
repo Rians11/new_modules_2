@@ -1,266 +1,728 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="light">
 <head>
 <!--
-  KLP STUDIO — PROTOTYPE B.2 : Inscription en ligne (page publique)
-  Rendu statique pour validation visuelle (ouvrir dans un navigateur, mode mobile).
+  KENNY LEONORE PRODUCTIONS — KLP STUDIO
+  PROTOTYPE B.2 v3 : PORTAIL D'INSCRIPTION (style "Applicant Portal")
+  - Thèmes clair (portail institutionnel) / sombre (studio KLP), FR / EN
+  - Reproduit la fiche subscription Odoo : plan, paiement, récurrence,
+    service category, élève(s), lesson type/mode/teacher/duration/start/end,
+    trial lesson, lignes produits, total estimatif
+  - Multi-élèves par client, produits additionnels (catalogue réel du site)
+  - Responsive téléphone + ordinateur. Photos/logo : CDN officiel kennyleonore.com
 
   INTÉGRATION ODOO PRÉVUE :
-  - GET  /klp/inscription        -> controller public (website)
-  - POST /klp/inscription/submit -> crée un crm.lead (ou res.partner draft +
-                                    demande), notifie le staff sur WhatsApp.
-  - Le choix du cours pilote la salle côté serveur (_room_allows_lesson) :
-    Drum -> Studio B, Music Production / Méditation -> Studio A.
-  - Lien partagé par WhatsApp / réseaux / site KLP.
+  - GET  /klp/inscription
+  - POST /klp/inscription/submit
+    payload {customer:{name,whatsapp,email}, plan, payment, students:[{name,age,
+    lesson,mode,teacher,duration,day,start,trial}], extras:[{sku,qty}]}
+    -> sale.order (subscription) brouillon : 1 ligne par élève + lignes produits,
+       student_ids, x_studio_* ; notification staff WhatsApp.
 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KLP Studio — Inscription en ligne</title>
+<title>KLP Studio — Portail d'inscription</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Albert+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#2B2233; --paper:#FAF7F2; --plum:#714B67; --plum-deep:#5A3B52;
-    --brass:#C99B3F; --sage:#3E7C5B; --line:#E6DFD6; --muted:#7A7068;
-    --card:#FFFFFF; --err:#B4452F; --radius:18px;
+    --bg:#F5F3EE; --card:#FFFFFF; --ink:#1B1620; --muted:#6E6575;
+    --gold:#A8833C; --gold-strong:#8C6B2C; --gold-soft:#F1E8D6;
+    --line:#E5E0D6; --field:#FBFAF7; --ok:#2E7D54; --err:#B4452F;
+    --shadow:0 14px 34px rgba(27,22,32,.08); --radius:16px;
+  }
+  [data-theme="dark"]{
+    --bg:#0E0C0F; --card:#17141A; --ink:#F4EFE6; --muted:#9B93A1;
+    --gold:#D4AF5E; --gold-strong:#E2C172; --gold-soft:#241D14;
+    --line:rgba(244,239,230,.13); --field:#0E0C0F; --ok:#69C08F; --err:#E07856;
+    --shadow:0 14px 34px rgba(0,0,0,.45);
   }
   *{box-sizing:border-box; margin:0; padding:0}
+  html{-webkit-text-size-adjust:100%}
   body{
-    font-family:'Albert Sans',system-ui,sans-serif; background:var(--paper);
-    color:var(--ink); min-height:100vh; display:flex; justify-content:center;
+    font-family:'Instrument Sans',system-ui,sans-serif; background:var(--bg);
+    color:var(--ink); min-height:100vh; transition:background .25s, color .25s;
   }
-  .app{width:100%; max-width:430px; padding:0 18px 60px}
-  header{padding:26px 2px 6px; display:flex; align-items:baseline; gap:10px}
-  .wordmark{font-family:'Fraunces',serif; font-weight:650; font-size:1.15rem}
-  .wordmark .note{color:var(--brass)}
-  .eyebrow{font-size:.68rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--plum)}
-  h1{font-family:'Fraunces',serif; font-weight:650; font-size:1.7rem; line-height:1.15; padding:10px 2px 4px}
-  .lede{color:var(--muted); font-size:.92rem; padding:0 2px 20px}
+  button{font:inherit; cursor:pointer}
+  .wrap{max-width:1060px; margin:0 auto; padding:0 18px}
+
+  /* ============ barre supérieure ============ */
+  .topbar{
+    display:flex; align-items:center; gap:12px; padding:14px 0;
+  }
+  .logo{
+    width:44px; height:44px; border-radius:11px; background:#F4EFE6;
+    display:flex; align-items:center; justify-content:center; overflow:hidden; flex:none;
+    border:1px solid var(--line);
+  }
+  .logo img{width:84%; height:84%; object-fit:contain}
+  .brand{line-height:1.05; margin-right:auto}
+  .brand .l1{font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:.98rem; letter-spacing:.03em}
+  .brand .l2{font-size:.58rem; font-weight:700; letter-spacing:.4em; color:var(--gold)}
+  .seg{display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--card)}
+  .seg button{
+    border:0; background:transparent; color:var(--muted); font-weight:700;
+    font-size:.78rem; padding:8px 12px;
+  }
+  .seg button[aria-pressed="true"]{background:var(--gold); color:#fff}
+  [data-theme="dark"] .seg button[aria-pressed="true"]{color:#0E0C0F}
+  .theme-btn{
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
+    border-radius:10px; width:38px; height:36px; font-size:1rem;
+  }
+  .seg button:focus-visible, .theme-btn:focus-visible{outline:3px solid var(--gold); outline-offset:2px}
+
+  /* ============ héro mosaïque (style portail d'admission) ============ */
+  .hero{position:relative; overflow:hidden}
+  .mosaic{display:grid; grid-template-columns:repeat(6,1fr); height:148px; filter:saturate(.92)}
+  .mosaic img{width:100%; height:100%; object-fit:cover; display:block}
+  .hero .veil{
+    position:absolute; inset:0;
+    background:linear-gradient(to bottom, rgba(14,12,15,.22), rgba(14,12,15,.66));
+  }
+  .hero .title{
+    position:absolute; inset:auto 0 16px 0; text-align:center; color:#F4EFE6; padding:0 16px;
+  }
+  .hero .title h1{font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:clamp(1.45rem, 4.6vw, 2.1rem); line-height:1.05}
+  .hero .title p{font-size:.78rem; letter-spacing:.24em; color:#D4AF5E; font-weight:700; padding-top:5px}
+
+  /* ============ étapes ============ */
+  .steps{
+    display:flex; gap:6px; padding:20px 0 18px; overflow-x:auto; scrollbar-width:none;
+  }
+  .steps::-webkit-scrollbar{display:none}
+  .step{
+    flex:1; min-width:118px; border:1px solid var(--line); background:var(--card);
+    border-radius:11px; padding:9px 12px; display:flex; align-items:center; gap:9px;
+    color:var(--muted); font-size:.78rem; font-weight:700; white-space:nowrap;
+  }
+  .step .n{
+    width:21px; height:21px; border-radius:50%; border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-size:.7rem; flex:none;
+  }
+  .step.active{border-color:var(--gold); color:var(--ink)}
+  .step.active .n{background:var(--gold); border-color:var(--gold); color:#fff}
+  [data-theme="dark"] .step.active .n{color:#0E0C0F}
+  .step.done .n{background:var(--ok); border-color:var(--ok); color:#fff}
+
+  /* ============ disposition ============ */
+  .grid{display:grid; grid-template-columns:1fr; gap:18px; padding-bottom:60px}
+  @media (min-width:880px){ .grid{grid-template-columns:1.6fr 1fr; align-items:start} }
 
   .card{
     background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
-    padding:18px 18px 20px; margin-bottom:16px; box-shadow:0 8px 20px rgba(43,34,51,.05);
+    box-shadow:var(--shadow); padding:22px 20px;
   }
   .card h2{
-    font-size:.75rem; font-weight:700; letter-spacing:.13em; text-transform:uppercase;
-    color:var(--plum); padding-bottom:14px;
+    font-family:'Bricolage Grotesque',sans-serif; font-weight:700; font-size:1.25rem; padding-bottom:4px;
   }
-  label{display:block; font-size:.84rem; font-weight:600; padding:10px 0 6px}
-  label:first-of-type{padding-top:0}
+  .card .sub{color:var(--muted); font-size:.88rem; padding-bottom:16px}
+  label{display:block; font-size:.82rem; font-weight:700; padding:13px 0 7px}
   input, select{
-    width:100%; font:inherit; font-size:.95rem; padding:12px 13px;
-    border:1.5px solid var(--line); border-radius:11px; background:#FDFCFA; color:var(--ink);
+    width:100%; font:inherit; font-size:.94rem; padding:12px 13px;
+    border:1px solid var(--line); border-radius:11px; background:var(--field); color:var(--ink);
   }
-  input:focus-visible, select:focus-visible{outline:3px solid var(--brass); outline-offset:1px; border-color:var(--plum)}
+  input:focus-visible, select:focus-visible{outline:2px solid var(--gold); outline-offset:1px; border-color:var(--gold)}
   input.invalid{border-color:var(--err)}
-  .hint{font-size:.76rem; color:var(--muted); padding-top:4px}
-  .error{font-size:.78rem; color:var(--err); padding-top:4px; display:none}
+  .error{font-size:.77rem; color:var(--err); padding-top:5px; display:none}
+  .hintline{font-size:.76rem; color:var(--muted); padding-top:5px}
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:0 14px}
+  @media (max-width:480px){ .two{grid-template-columns:1fr} }
 
-  .chips{display:flex; flex-wrap:wrap; gap:9px}
+  .chips{display:flex; flex-wrap:wrap; gap:8px}
   .chip{
-    font:inherit; font-weight:600; font-size:.9rem; padding:10px 14px;
-    border-radius:12px; border:1.5px solid var(--line); background:#FDFCFA;
-    color:var(--ink); cursor:pointer; transition:all .15s;
+    font-weight:600; font-size:.86rem; padding:9px 13px; border-radius:10px;
+    border:1px solid var(--line); background:var(--field); color:var(--ink);
+    transition:all .14s;
   }
-  .chip[aria-pressed="true"]{background:var(--plum); border-color:var(--plum); color:#fff}
-  .chip:focus-visible{outline:3px solid var(--brass); outline-offset:2px}
-  .chip:active{transform:scale(.97)}
+  .chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:#fff; font-weight:700}
+  [data-theme="dark"] .chip[aria-pressed="true"]{color:#0E0C0F}
+  .chip:focus-visible{outline:3px solid var(--gold); outline-offset:2px}
   .room-hint{
-    display:none; margin-top:11px; font-size:.8rem; color:var(--plum);
-    background:#F1E9EF; border-radius:9px; padding:8px 11px;
+    display:none; margin-top:10px; font-size:.79rem; color:var(--gold-strong);
+    border:1px dashed var(--gold); border-radius:9px; padding:8px 11px;
   }
+  .switch{display:flex; align-items:center; gap:10px; padding-top:14px}
+  .switch input{width:auto; accent-color:var(--gold); transform:scale(1.25)}
+  .switch span{font-size:.86rem; font-weight:600}
 
-  .send{
-    width:100%; font:inherit; font-weight:700; font-size:1.02rem; color:#fff;
-    background:var(--plum); border:0; border-radius:14px; padding:16px; margin-top:6px;
-    cursor:pointer; box-shadow:0 8px 20px rgba(113,75,103,.35); transition:background .15s;
+  /* ----- carte élève ----- */
+  .student-card{
+    border:1px solid var(--line); border-radius:13px; padding:16px 15px 18px;
+    margin-bottom:14px; background:var(--field); position:relative;
   }
-  .send:active{background:var(--plum-deep)}
-  .send:focus-visible{outline:3px solid var(--brass); outline-offset:2px}
-  .privacy{font-size:.74rem; color:var(--muted); text-align:center; padding-top:12px}
+  .student-card .head{display:flex; align-items:center; justify-content:space-between; padding-bottom:4px}
+  .student-card .head .who{
+    font-size:.68rem; font-weight:800; letter-spacing:.2em; color:var(--gold);
+  }
+  .remove{
+    border:0; background:transparent; color:var(--muted); font-size:.78rem;
+    font-weight:700; text-decoration:underline; text-underline-offset:3px;
+  }
+  .add-child{
+    width:100%; border:1.5px dashed var(--gold); background:transparent; color:var(--gold-strong);
+    border-radius:12px; padding:13px; font-weight:700; font-size:.92rem; margin-top:2px;
+  }
+  [data-theme="dark"] .add-child{color:var(--gold)}
 
-  /* ----- ticket de bienvenue (succès) ----- */
-  .done{display:none; text-align:center; padding-top:8px}
+  /* ----- produits ----- */
+  .product{
+    display:flex; align-items:center; gap:13px; border:1px solid var(--line);
+    border-radius:13px; padding:13px 14px; margin-bottom:11px; background:var(--field);
+  }
+  .product img{width:54px; height:54px; border-radius:9px; object-fit:cover; flex:none}
+  .product .info{flex:1}
+  .product .name{font-weight:700; font-size:.92rem}
+  .product .desc{color:var(--muted); font-size:.78rem; padding-top:2px}
+  .qty{display:flex; align-items:center; gap:9px}
+  .qty button{
+    width:30px; height:30px; border-radius:9px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); font-weight:800;
+  }
+  .qty .q{min-width:18px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums}
+
+  /* ----- navigation des étapes ----- */
+  .navrow{display:flex; gap:10px; padding-top:20px}
+  .btn{
+    flex:1; border:0; border-radius:12px; padding:15px; font-weight:800;
+    font-size:.95rem; letter-spacing:.03em;
+  }
+  .btn.primary{background:var(--gold); color:#fff; box-shadow:0 10px 26px rgba(168,131,60,.3)}
+  [data-theme="dark"] .btn.primary{color:#0E0C0F}
+  .btn.primary:active{background:var(--gold-strong)}
+  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--muted); flex:.5}
+  .btn:focus-visible{outline:3px solid var(--ink); outline-offset:2px}
+
+  /* ----- récapitulatif ----- */
+  .summary{position:sticky; top:14px}
+  @media (max-width:879px){ .summary{position:static} }
+  .summary h3{
+    font-size:.68rem; font-weight:800; letter-spacing:.22em; color:var(--gold); padding-bottom:13px;
+  }
+  .sumline{display:flex; justify-content:space-between; gap:12px; font-size:.87rem; padding:6px 0}
+  .sumline .l{color:var(--muted)}
+  .sumline .r{font-weight:600; text-align:right; font-variant-numeric:tabular-nums}
+  .sumline.total{
+    border-top:1px solid var(--line); margin-top:10px; padding-top:13px;
+    font-size:1rem;
+  }
+  .sumline.total .l{color:var(--ink); font-weight:800}
+  .sumline.total .r{font-weight:800; color:var(--gold-strong)}
+  [data-theme="dark"] .sumline.total .r{color:var(--gold)}
+  .sumnote{font-size:.73rem; color:var(--muted); padding-top:11px; line-height:1.5}
+
+  /* ----- succès ----- */
+  .done{display:none; text-align:center; padding:30px 0 10px}
   .done .check{
-    width:54px; height:54px; border-radius:50%; background:var(--sage); color:#fff;
-    font-size:1.6rem; line-height:54px; margin:0 auto 14px;
+    width:58px; height:58px; border-radius:50%; border:2px solid var(--ok); color:var(--ok);
+    font-size:1.5rem; line-height:55px; margin:0 auto 16px;
   }
-  .done p{color:var(--muted); font-size:.93rem; padding:6px 4px 22px}
-  .ticket{
-    position:relative; background:var(--card); border:1px solid var(--line);
-    border-radius:var(--radius); padding:18px 20px; text-align:left;
-    box-shadow:0 10px 24px rgba(43,34,51,.07);
+  .done h2{font-family:'Bricolage Grotesque',sans-serif; font-size:1.6rem; padding-bottom:6px}
+  .done p{color:var(--muted); font-size:.92rem; padding-bottom:22px}
+  .pass{
+    text-align:left; max-width:430px; margin:0 auto; border-radius:var(--radius);
+    border:1px solid var(--gold); padding:20px; background:var(--card);
+    position:relative; overflow:hidden; box-shadow:var(--shadow);
   }
-  .ticket::before,.ticket::after{
-    content:""; position:absolute; width:18px; height:18px; border-radius:50%;
-    background:var(--paper); border:1px solid var(--line); top:50%; transform:translateY(-50%);
-  }
-  .ticket::before{left:-10px} .ticket::after{right:-10px}
-  .ticket .tag{
-    display:inline-block; font-size:.66rem; font-weight:700; letter-spacing:.14em;
-    text-transform:uppercase; color:var(--sage); background:#E8F1EC;
-    padding:4px 9px; border-radius:99px; margin-bottom:10px;
-  }
-  .ticket .big{font-family:'Fraunces',serif; font-weight:650; font-size:1.25rem}
-  .ticket .sub{color:var(--muted); font-size:.9rem; margin-top:3px}
-  .footer-note{padding-top:34px; text-align:center; color:var(--muted); font-size:.78rem}
+  .pass::after{content:""; position:absolute; inset:auto 0 0 0; height:4px;
+    background:linear-gradient(90deg, var(--gold), var(--gold-strong))}
+  .pass .tag{font-size:.6rem; font-weight:800; letter-spacing:.26em; color:var(--gold); display:block; padding-bottom:10px}
+  .pass .big{font-family:'Bricolage Grotesque',sans-serif; font-weight:700; font-size:1.25rem}
+  .pass .sub2{color:var(--muted); font-size:.86rem; margin-top:4px; line-height:1.55}
 
+  footer{padding:34px 0 40px; text-align:center; color:var(--muted); font-size:.74rem; line-height:1.8}
+  footer a{color:var(--muted)}
+  .quote{
+    text-align:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:600;
+    font-size:.82rem; letter-spacing:.1em; color:var(--gold); padding-top:6px;
+  }
+  .pane{display:none}
+  .pane.active{display:block}
   @media (prefers-reduced-motion: no-preference){
-    .card{animation:rise .4s cubic-bezier(.2,.8,.3,1) both}
-    .card:nth-of-type(2){animation-delay:.05s}
-    .card:nth-of-type(3){animation-delay:.1s}
+    .pane.active{animation:rise .35s cubic-bezier(.2,.8,.3,1) both}
     @keyframes rise{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
   }
 </style>
 </head>
 <body>
-<div class="app">
 
-  <header>
-    <span class="wordmark">KLP<span class="note"> ♪ </span>Studio</span>
-    <span class="eyebrow">Inscription</span>
-  </header>
-
-  <div id="form-screen">
-    <h1>Inscrire un élève</h1>
-    <p class="lede">Remplissez ce formulaire — notre équipe vous recontacte sur WhatsApp sous 24&nbsp;h pour confirmer le créneau.</p>
-
-    <form id="f" novalidate>
-      <div class="card">
-        <h2>L'élève</h2>
-        <label for="s-name">Nom complet de l'élève</label>
-        <input id="s-name" required autocomplete="name" placeholder="Ex. Marin Lebon">
-        <div class="error" id="e-s-name">Indiquez le nom de l'élève.</div>
-        <label for="s-age">Âge</label>
-        <input id="s-age" type="number" min="3" max="99" inputmode="numeric" placeholder="Ex. 9">
-      </div>
-
-      <div class="card">
-        <h2>Le parent / contact</h2>
-        <label for="p-name">Votre nom</label>
-        <input id="p-name" required placeholder="Ex. Sarah Lebon">
-        <div class="error" id="e-p-name">Indiquez votre nom.</div>
-        <label for="p-wa">Numéro WhatsApp</label>
-        <input id="p-wa" type="tel" required inputmode="tel" placeholder="+230 5XXX XXXX">
-        <div class="hint">C'est ici que vous recevrez la confirmation.</div>
-        <div class="error" id="e-p-wa">Numéro mauricien attendu (ex. +230 5755 2925).</div>
-      </div>
-
-      <div class="card">
-        <h2>Le cours</h2>
-        <label>Instrument / activité</label>
-        <div class="chips" id="lessons"></div>
-        <div class="room-hint" id="room-hint"></div>
-        <div class="error" id="e-lesson">Choisissez un cours.</div>
-
-        <label style="padding-top:16px">Mode</label>
-        <div class="chips" id="modes"></div>
-
-        <label style="padding-top:16px">Durée souhaitée</label>
-        <div class="chips" id="durations"></div>
-
-        <label for="day" style="padding-top:16px">Jour préféré</label>
-        <select id="day">
-          <option>Indifférent</option><option>Lundi</option><option>Mardi</option>
-          <option>Mercredi</option><option>Jeudi</option><option>Vendredi</option>
-          <option>Samedi</option>
-        </select>
-      </div>
-
-      <button class="send" type="submit">Envoyer l'inscription</button>
-      <p class="privacy">Vos informations ne servent qu'à organiser le cours d'essai.</p>
-    </form>
-  </div>
-
-  <!-- ----- SUCCÈS ----- -->
-  <div class="done" id="done">
-    <div class="check">✓</div>
-    <h1>Inscription envoyée</h1>
-    <p>Bienvenue à KLP Studio&nbsp;! 🎶<br>Nous vous écrivons sur WhatsApp sous 24&nbsp;h.</p>
-    <div class="ticket">
-      <span class="tag">Demande reçue</span>
-      <div class="big" id="d-student">—</div>
-      <div class="sub" id="d-lesson">—</div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="logo"><img src="https://images.leadconnectorhq.com/image/f_webp/q_80/r_1200/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/64650d04a781d26e0f6f5c6a.png" alt="Kenny Leonore Productions"></span>
+    <div class="brand">
+      <div class="l1">KENNY LEONORE</div>
+      <div class="l2">PRODUCTIONS</div>
     </div>
+    <div class="seg" role="group" aria-label="Langue">
+      <button id="lang-fr" aria-pressed="true" onclick="setLang('fr')">FR</button>
+      <button id="lang-en" aria-pressed="false" onclick="setLang('en')">EN</button>
+    </div>
+    <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Thème">🌙</button>
   </div>
-
-  <p class="footer-note">KLP Studio · Mapou, Maurice · +230 5980-4605</p>
 </div>
 
-<script>
-const LESSONS = ["Piano","Guitare","Drum","Chant","Violon","Éveil musical","Music Production","Méditation"];
-const ROOM_RULES = { "Drum": "Studio B", "Music Production": "Studio A", "Méditation": "Studio A" };
-const MODES = ["Au studio","En ligne"];
-const DURATIONS = ["30 minutes","1 heure"];
+<div class="hero">
+  <div class="mosaic" aria-hidden="true">
+    <img src="https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/646a125bd0a889095c8cdb0a.jpeg" alt="">
+    <img src="https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/6467e5db680f2647c441bd34.jpeg" alt="">
+    <img src="https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/647ae31ee283d58f515798e3.jpeg" alt="">
+    <img src="https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/647addceea3c6c7122b0c7af.jpeg" alt="">
+    <img src="https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/646a125b680f26669343977b.jpeg" alt="">
+    <img src="https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/647add7de283d5d19e5797ae.jpeg" alt="">
+  </div>
+  <div class="veil"></div>
+  <div class="title">
+    <h1 data-i18n="hero_title">Portail d'inscription</h1>
+    <p>KLP STUDIO · MAPOU</p>
+  </div>
+</div>
 
-function chipGroup(elId, items, preselect){
+<main class="wrap">
+
+  <nav class="steps" id="steps">
+    <div class="step active" data-step="0"><span class="n">1</span><span data-i18n="step1">Contact</span></div>
+    <div class="step" data-step="1"><span class="n">2</span><span data-i18n="step2">Élèves</span></div>
+    <div class="step" data-step="2"><span class="n">3</span><span data-i18n="step3">Options</span></div>
+    <div class="step" data-step="3"><span class="n">4</span><span data-i18n="step4">Récapitulatif</span></div>
+  </nav>
+
+  <div class="grid" id="main-grid">
+    <div>
+      <!-- ========== ÉTAPE 1 : CONTACT / PLAN ========== -->
+      <section class="card pane active" data-pane="0">
+        <h2 data-i18n="p1_title">Le parent / client</h2>
+        <p class="sub" data-i18n="p1_sub">Comme sur la fiche d'abonnement : client, plan et paiement.</p>
+        <label for="c-name" data-i18n="f_name">Nom complet</label>
+        <input id="c-name" autocomplete="name" placeholder="Ex. Sarah Lebon">
+        <div class="error" id="e-c-name" data-i18n="err_name">Indiquez votre nom.</div>
+        <div class="two">
+          <div>
+            <label for="c-wa" data-i18n="f_wa">Numéro WhatsApp</label>
+            <input id="c-wa" type="tel" inputmode="tel" placeholder="+230 5XXX XXXX">
+            <div class="error" id="e-c-wa" data-i18n="err_wa">Numéro mauricien attendu.</div>
+          </div>
+          <div>
+            <label for="c-mail" data-i18n="f_mail">E-mail (optionnel)</label>
+            <input id="c-mail" type="email" autocomplete="email" placeholder="vous@email.com">
+          </div>
+        </div>
+        <label data-i18n="f_plan">Plan d'abonnement (récurrence)</label>
+        <div class="chips" id="plan"></div>
+        <label data-i18n="f_pay">Méthode de paiement</label>
+        <div class="chips" id="payment"></div>
+        <div class="navrow">
+          <button class="btn primary" onclick="next(0)" data-i18n="b_next">Continuer</button>
+        </div>
+      </section>
+
+      <!-- ========== ÉTAPE 2 : ÉLÈVES ========== -->
+      <section class="card pane" data-pane="1">
+        <h2 data-i18n="p2_title">Les élèves</h2>
+        <p class="sub" data-i18n="p2_sub">Ajoutez un ou plusieurs enfants — chacun avec son cours, son prof et son créneau.</p>
+        <div id="students"></div>
+        <button class="add-child" onclick="addStudent()" data-i18n="b_add">+ Ajouter un autre enfant</button>
+        <div class="error" id="e-students" style="padding-top:10px" data-i18n="err_student">Complétez le nom et le cours de chaque élève.</div>
+        <div class="navrow">
+          <button class="btn ghost" onclick="back(1)" data-i18n="b_back">Retour</button>
+          <button class="btn primary" onclick="next(1)" data-i18n="b_next">Continuer</button>
+        </div>
+      </section>
+
+      <!-- ========== ÉTAPE 3 : PRODUITS / SERVICES ========== -->
+      <section class="card pane" data-pane="2">
+        <h2 data-i18n="p3_title">Services & produits</h2>
+        <p class="sub" data-i18n="p3_sub">Optionnel — complétez votre abonnement avec l'univers KLP.</p>
+        <div id="products"></div>
+        <div class="navrow">
+          <button class="btn ghost" onclick="back(2)" data-i18n="b_back">Retour</button>
+          <button class="btn primary" onclick="next(2)" data-i18n="b_next">Continuer</button>
+        </div>
+      </section>
+
+      <!-- ========== ÉTAPE 4 : RÉCAP ========== -->
+      <section class="card pane" data-pane="3">
+        <h2 data-i18n="p4_title">Récapitulatif</h2>
+        <p class="sub" data-i18n="p4_sub">Vérifiez votre demande — notre équipe confirme tout sur WhatsApp sous 24 h.</p>
+        <div id="review"></div>
+        <div class="navrow">
+          <button class="btn ghost" onclick="back(3)" data-i18n="b_back">Retour</button>
+          <button class="btn primary" onclick="submitAll()" data-i18n="b_send">Envoyer la demande</button>
+        </div>
+      </section>
+
+      <!-- ========== SUCCÈS ========== -->
+      <section class="card done" id="done">
+        <div class="check">✓</div>
+        <h2 data-i18n="d_title">Demande envoyée</h2>
+        <p data-i18n="d_sub">Bienvenue chez Kenny Leonore Productions ! 🎶 Nous vous écrivons sur WhatsApp sous 24 h.</p>
+        <div class="pass">
+          <span class="tag" data-i18n="d_tag">PASS ÉLÈVE · DEMANDE REÇUE</span>
+          <div class="big" id="d-names">—</div>
+          <div class="sub2" id="d-detail">—</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ========== RÉSUMÉ LATÉRAL ========== -->
+    <aside class="card summary" id="summary-card">
+      <h3 data-i18n="s_title">VOTRE DEMANDE</h3>
+      <div id="sumbody"></div>
+      <p class="sumnote" data-i18n="s_note">Tarifs indicatifs par session, confirmés par notre équipe avant tout paiement. Produits et location studio sur devis.</p>
+    </aside>
+  </div>
+</main>
+
+<p class="quote">« INSPIRED MIND BY MAKING MUSIC »</p>
+<footer class="wrap">
+  Kenny Leonore Productions Ltd · Unit 8 Building 8, Quartier Des Serres, Rue Labourdonnais, Mapou<br>
+  <a href="tel:+23059804605">+230 5980-4605</a> · <a href="mailto:klp@kennyleonore.com">klp@kennyleonore.com</a> ·
+  <a href="https://www.kennyleonore.com">kennyleonore.com</a>
+</footer>
+
+<script>
+/* ===================== i18n ===================== */
+const I18N = {
+  fr: {
+    hero_title:"Portail d'inscription", step1:"Contact", step2:"Élèves", step3:"Options", step4:"Récapitulatif",
+    p1_title:"Le parent / client", p1_sub:"Comme sur la fiche d'abonnement : client, plan et paiement.",
+    f_name:"Nom complet", f_wa:"Numéro WhatsApp", f_mail:"E-mail (optionnel)",
+    f_plan:"Plan d'abonnement (récurrence)", f_pay:"Méthode de paiement",
+    err_name:"Indiquez votre nom.", err_wa:"Numéro mauricien attendu.",
+    p2_title:"Les élèves", p2_sub:"Ajoutez un ou plusieurs enfants — chacun avec son cours, son prof et son créneau.",
+    b_add:"+ Ajouter un autre enfant", err_student:"Complétez le nom et le cours de chaque élève.",
+    p3_title:"Services & produits", p3_sub:"Optionnel — complétez votre abonnement avec l'univers KLP.",
+    p4_title:"Récapitulatif", p4_sub:"Vérifiez votre demande — notre équipe confirme tout sur WhatsApp sous 24 h.",
+    b_next:"Continuer", b_back:"Retour", b_send:"Envoyer la demande",
+    d_title:"Demande envoyée", d_sub:"Bienvenue chez Kenny Leonore Productions ! 🎶 Nous vous écrivons sur WhatsApp sous 24 h.",
+    d_tag:"PASS ÉLÈVE · DEMANDE REÇUE",
+    s_title:"VOTRE DEMANDE",
+    s_note:"Tarifs indicatifs par session, confirmés par notre équipe avant tout paiement. Produits et location studio sur devis.",
+    student:"ÉLÈVE", remove:"Retirer", sname:"Nom de l'élève", sage:"Âge",
+    lesson:"Cours", mode:"Mode", teacher:"Professeur", any:"Indifférent",
+    duration:"Durée", day:"Jour", start:"Heure de début", end:"Fin",
+    trial:"Première session d'essai", room:"Cette session se déroule en",
+    days:["Indifférent","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"],
+    modes:["Au studio","En ligne"], durations:["30 minutes","1 heure"],
+    plans:["Hebdomadaire","Bimensuel","Mensuel"], payments:["MCB Juice","Virement bancaire","Espèces"],
+    per_month:{Hebdomadaire:"≈ 4 sessions / mois", Bimensuel:"≈ 2 sessions / mois", Mensuel:"1 session / mois"},
+    sum_students:"élève(s)", sum_sessions:"Sessions / mois", sum_extras:"Produits & services",
+    sum_total:"Estimation mensuelle", quote:"sur devis", trial_line:"1re session d'essai offerte de décision",
+    empty:"Complétez les étapes pour voir l'estimation.",
+    rev_contact:"Contact", rev_plan:"Plan", rev_pay:"Paiement",
+    products:[
+      {sku:"rental", name:"Location Studio (1 h)", desc:"Session en studio professionnel", price:null},
+      {sku:"usb",    name:"USB Music Album",       desc:"Clé USB personnalisée KLP", price:null},
+      {sku:"ring",   name:"Personalized Ringtone", desc:"Sonnerie sur mesure", price:null},
+    ],
+  },
+  en: {
+    hero_title:"Enrollment Portal", step1:"Contact", step2:"Students", step3:"Add-ons", step4:"Review",
+    p1_title:"Parent / customer", p1_sub:"Just like the subscription form: customer, plan and payment.",
+    f_name:"Full name", f_wa:"WhatsApp number", f_mail:"Email (optional)",
+    f_plan:"Subscription plan (recurrence)", f_pay:"Payment method",
+    err_name:"Please enter your name.", err_wa:"Mauritian number expected.",
+    p2_title:"Students", p2_sub:"Add one or more children — each with their lesson, teacher and time slot.",
+    b_add:"+ Add another child", err_student:"Complete each student's name and lesson.",
+    p3_title:"Services & products", p3_sub:"Optional — complete your subscription with the KLP universe.",
+    p4_title:"Review", p4_sub:"Check your request — our team confirms everything on WhatsApp within 24 h.",
+    b_next:"Continue", b_back:"Back", b_send:"Send request",
+    d_title:"Request sent", d_sub:"Welcome to Kenny Leonore Productions! 🎶 We'll message you on WhatsApp within 24 h.",
+    d_tag:"STUDENT PASS · REQUEST RECEIVED",
+    s_title:"YOUR REQUEST",
+    s_note:"Indicative per-session pricing, confirmed by our team before any payment. Products and studio rental on quotation.",
+    student:"STUDENT", remove:"Remove", sname:"Student's name", sage:"Age",
+    lesson:"Lesson", mode:"Mode", teacher:"Teacher", any:"No preference",
+    duration:"Duration", day:"Day", start:"Start time", end:"End",
+    trial:"First trial session", room:"This session takes place in",
+    days:["No preference","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+    modes:["At the studio","Online"], durations:["30 minutes","1 hour"],
+    plans:["Weekly","Bi-weekly","Monthly"], payments:["MCB Juice","Bank transfer","Cash"],
+    per_month:{Weekly:"≈ 4 sessions / month","Bi-weekly":"≈ 2 sessions / month",Monthly:"1 session / month"},
+    sum_students:"student(s)", sum_sessions:"Sessions / month", sum_extras:"Products & services",
+    sum_total:"Monthly estimate", quote:"on quotation", trial_line:"first trial session",
+    empty:"Complete the steps to see the estimate.",
+    rev_contact:"Contact", rev_plan:"Plan", rev_pay:"Payment",
+    products:[
+      {sku:"rental", name:"Studio Rental (1 h)",   desc:"Professional studio session", price:null},
+      {sku:"usb",    name:"USB Music Album",       desc:"Personalized KLP USB drive", price:null},
+      {sku:"ring",   name:"Personalized Ringtone", desc:"Custom ringtone", price:null},
+    ],
+  }
+};
+const LESSONS = ["Piano","Guitare","Drum","Chant","Violon","Éveil musical","Music Production","Méditation"];
+const LESSONS_EN = ["Piano","Guitar","Drum","Singing","Violin","Musical Awakening","Music Production","Meditation"];
+const ROOM_RULES = {"Drum":"Studio B","Music Production":"Studio A","Méditation":"Studio A","Meditation":"Studio A"};
+const TEACHERS = ["Kenny Leonore","Rick Cupidon","Rianala A."];
+const PRICE = {30:800, 60:1500};           /* Rs / session — indicatif */
+const SESSIONS_PER_MONTH = [4,2,1];        /* hebdo, bimensuel, mensuel */
+const TIMES = [];
+for (let h=9; h<=18; h++){ TIMES.push(String(h).padStart(2,"0")+":00"); TIMES.push(String(h).padStart(2,"0")+":30"); }
+
+let lang = "fr";
+let state = {
+  plan:0, payment:0,
+  students:[], extras:{rental:0, usb:0, ring:0},
+  step:0,
+};
+const t = k => I18N[lang][k];
+
+/* ===================== thème / langue ===================== */
+function toggleTheme(){
+  const h = document.documentElement;
+  const dark = h.getAttribute("data-theme") === "dark";
+  h.setAttribute("data-theme", dark ? "light" : "dark");
+  document.getElementById("theme-btn").textContent = dark ? "🌙" : "☀️";
+}
+function setLang(l){
+  lang = l;
+  document.documentElement.lang = l;
+  document.getElementById("lang-fr").setAttribute("aria-pressed", l==="fr");
+  document.getElementById("lang-en").setAttribute("aria-pressed", l==="en");
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  renderChips("plan", t("plans"), "plan");
+  renderChips("payment", t("payments"), "payment");
+  renderStudents(); renderProducts(); renderSummary();
+}
+
+/* ===================== chips génériques ===================== */
+function renderChips(elId, items, key){
   const wrap = document.getElementById(elId);
+  wrap.innerHTML = "";
   items.forEach((label, i) => {
     const b = document.createElement("button");
     b.type = "button"; b.className = "chip"; b.textContent = label;
-    b.setAttribute("aria-pressed", preselect === i ? "true" : "false");
-    b.addEventListener("click", () => {
-      wrap.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed","false"));
-      b.setAttribute("aria-pressed","true");
-      if (elId === "lessons") lessonPicked(label);
-    });
+    b.setAttribute("aria-pressed", state[key] === i);
+    b.onclick = () => { state[key] = i; renderChips(elId, items, key); renderSummary(); };
     wrap.appendChild(b);
   });
 }
-chipGroup("lessons", LESSONS);
-chipGroup("modes", MODES, 0);
-chipGroup("durations", DURATIONS, 0);
 
-function lessonPicked(label){
-  const hint = document.getElementById("room-hint");
-  if (ROOM_RULES[label]){
-    hint.style.display = "block";
-    hint.textContent = "♪ Ce cours se déroule en " + ROOM_RULES[label] + ".";
-  } else {
-    hint.style.display = "none";
-  }
-  document.getElementById("e-lesson").style.display = "none";
-}
+/* ===================== élèves ===================== */
+function blankStudent(){ return {name:"", age:"", lesson:null, mode:0, teacher:0, duration:0, day:0, start:"15:00", trial:false}; }
+function addStudent(){ state.students.push(blankStudent()); renderStudents(); renderSummary(); }
+function removeStudent(i){ state.students.splice(i,1); if(!state.students.length) state.students.push(blankStudent()); renderStudents(); renderSummary(); }
 
-function pressed(elId){
-  const b = document.querySelector("#" + elId + ' .chip[aria-pressed="true"]');
-  return b ? b.textContent : null;
-}
-
-const MU_PHONE = /^(\+?230)?\s*5\d{3}\s*\d{4}$/;
-
-document.getElementById("f").addEventListener("submit", e => {
-  e.preventDefault();
-  let ok = true;
-  const checks = [
-    ["s-name", v => v.trim().length >= 2],
-    ["p-name", v => v.trim().length >= 2],
-    ["p-wa",  v => MU_PHONE.test(v.replace(/[-.]/g, " "))],
-  ];
-  checks.forEach(([id, test]) => {
-    const input = document.getElementById(id);
-    const valid = test(input.value);
-    input.classList.toggle("invalid", !valid);
-    document.getElementById("e-" + id).style.display = valid ? "none" : "block";
-    if (!valid) ok = false;
+function renderStudents(){
+  const lessons = lang === "fr" ? LESSONS : LESSONS_EN;
+  const wrap = document.getElementById("students");
+  wrap.innerHTML = "";
+  state.students.forEach((s, i) => {
+    const card = document.createElement("div");
+    card.className = "student-card";
+    card.innerHTML = `
+      <div class="head">
+        <span class="who">${t("student")} ${i+1}</span>
+        ${state.students.length > 1 ? `<button class="remove" onclick="removeStudent(${i})">${t("remove")}</button>` : ""}
+      </div>
+      <div class="two">
+        <div><label>${t("sname")}</label><input value="${s.name.replace(/"/g,"&quot;")}" oninput="state.students[${i}].name=this.value; renderSummary()" placeholder="Ex. Marin Lebon"></div>
+        <div><label>${t("sage")}</label><input type="number" min="3" max="99" value="${s.age}" oninput="state.students[${i}].age=this.value"></div>
+      </div>
+      <label>${t("lesson")}</label>
+      <div class="chips" id="lc-${i}"></div>
+      <div class="room-hint" id="rh-${i}"></div>
+      <div class="two">
+        <div><label>${t("mode")}</label><div class="chips" id="mc-${i}"></div></div>
+        <div><label>${t("duration")}</label><div class="chips" id="dc-${i}"></div></div>
+      </div>
+      <div class="two">
+        <div><label>${t("teacher")}</label>
+          <select onchange="state.students[${i}].teacher=this.selectedIndex">
+            <option>${t("any")}</option>${TEACHERS.map(x=>`<option>${x}</option>`).join("")}
+          </select>
+        </div>
+        <div><label>${t("day")}</label>
+          <select onchange="state.students[${i}].day=this.selectedIndex">
+            ${t("days").map((d,di)=>`<option ${di===s.day?"selected":""}>${d}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="two">
+        <div><label>${t("start")}</label>
+          <select onchange="state.students[${i}].start=this.value; renderStudents(); renderSummary()">
+            ${TIMES.map(x=>`<option ${x===s.start?"selected":""}>${x}</option>`).join("")}
+          </select>
+        </div>
+        <div><label>${t("end")}</label><input value="${endTime(s)}" disabled></div>
+      </div>
+      <div class="switch">
+        <input type="checkbox" id="tr-${i}" ${s.trial?"checked":""} onchange="state.students[${i}].trial=this.checked; renderSummary()">
+        <span>${t("trial")}</span>
+      </div>`;
+    wrap.appendChild(card);
+    renderLessonChips(i, lessons);
+    renderSmallChips("mc-"+i, t("modes"), s, "mode");
+    renderSmallChips("dc-"+i, t("durations"), s, "duration", true);
   });
-  const lesson = pressed("lessons");
-  if (!lesson){
-    document.getElementById("e-lesson").style.display = "block";
-    ok = false;
+  state.students.forEach((s,i)=>{ const sel=document.querySelectorAll("#students .student-card")[i].querySelectorAll("select")[0]; sel.selectedIndex = s.teacher; });
+}
+function renderLessonChips(i, lessons){
+  const wrap = document.getElementById("lc-"+i);
+  wrap.innerHTML = "";
+  lessons.forEach((label, li) => {
+    const b = document.createElement("button");
+    b.type="button"; b.className="chip"; b.textContent = label;
+    b.setAttribute("aria-pressed", state.students[i].lesson === li);
+    b.onclick = () => {
+      state.students[i].lesson = li;
+      renderLessonChips(i, lessons);
+      const hint = document.getElementById("rh-"+i);
+      const room = ROOM_RULES[label];
+      if (room){ hint.style.display="block"; hint.textContent = "♪ " + t("room") + " " + room + "."; }
+      else hint.style.display="none";
+      renderSummary();
+    };
+    wrap.appendChild(b);
+  });
+  const sLesson = state.students[i].lesson;
+  if (sLesson !== null){
+    const room = ROOM_RULES[lessons[sLesson]];
+    const hint = document.getElementById("rh-"+i);
+    if (room){ hint.style.display="block"; hint.textContent = "♪ " + t("room") + " " + room + "."; }
   }
-  if (!ok){ window.scrollTo({top: 0, behavior: "smooth"}); return; }
+}
+function renderSmallChips(elId, items, s, key, refresh){
+  const wrap = document.getElementById(elId);
+  wrap.innerHTML = "";
+  items.forEach((label, li) => {
+    const b = document.createElement("button");
+    b.type="button"; b.className="chip"; b.textContent = label;
+    b.setAttribute("aria-pressed", s[key] === li);
+    b.onclick = () => { s[key] = li; renderSmallChips(elId, items, s, key, refresh); if(refresh){renderStudents();} renderSummary(); };
+    wrap.appendChild(b);
+  });
+}
+function endTime(s){
+  const mins = s.duration === 0 ? 30 : 60;
+  const [h,m] = s.start.split(":").map(Number);
+  const tot = h*60+m+mins;
+  return String(Math.floor(tot/60)).padStart(2,"0")+":"+String(tot%60).padStart(2,"0");
+}
 
-  /* Intégration : POST /klp/inscription/submit {student, parent, whatsapp,
-     lesson, mode, duration, preferred_day} -> crm.lead + notif staff WhatsApp */
-  document.getElementById("d-student").textContent = document.getElementById("s-name").value.trim();
-  document.getElementById("d-lesson").textContent =
-    lesson + " · " + pressed("modes") + " · " + pressed("durations")
-    + (ROOM_RULES[lesson] ? " · " + ROOM_RULES[lesson] : "");
-  document.getElementById("form-screen").style.display = "none";
+/* ===================== produits ===================== */
+function renderProducts(){
+  const wrap = document.getElementById("products");
+  wrap.innerHTML = "";
+  const imgs = {
+    rental:"https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/646a125bd0a889095c8cdb0a.jpeg",
+    usb:"https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/6475cec328969b8142ee2bc6.jpeg",
+    ring:"https://images.leadconnectorhq.com/image/f_webp/q_80/r_600/u_https://assets.cdn.filesafe.space/NlnGHkSBM7o7Y2cxtSa7/media/646a125b680f268aae43977a.jpeg",
+  };
+  t("products").forEach(p => {
+    const row = document.createElement("div");
+    row.className = "product";
+    row.innerHTML = `
+      <img src="${imgs[p.sku]}" alt="">
+      <div class="info"><div class="name">${p.name}</div><div class="desc">${p.desc} · ${t("quote")}</div></div>
+      <div class="qty">
+        <button aria-label="-" onclick="bump('${p.sku}',-1)">−</button>
+        <span class="q" id="q-${p.sku}">${state.extras[p.sku]}</span>
+        <button aria-label="+" onclick="bump('${p.sku}',1)">+</button>
+      </div>`;
+    wrap.appendChild(row);
+  });
+}
+function bump(sku, d){
+  state.extras[sku] = Math.max(0, state.extras[sku] + d);
+  document.getElementById("q-"+sku).textContent = state.extras[sku];
+  renderSummary();
+}
+
+/* ===================== résumé / récap ===================== */
+function studentPrice(s){ return s.duration === 0 ? PRICE[30] : PRICE[60]; }
+function fmt(n){ return n.toLocaleString(lang === "fr" ? "fr-FR" : "en-US"); }
+
+function renderSummary(){
+  const lessons = lang === "fr" ? LESSONS : LESSONS_EN;
+  const box = document.getElementById("sumbody");
+  const ready = state.students.some(s => s.name.trim() && s.lesson !== null);
+  if (!ready){ box.innerHTML = `<div class="sumline"><span class="l">${t("empty")}</span></div>`; return; }
+  const spm = SESSIONS_PER_MONTH[state.plan];
+  let total = 0;
+  let html = "";
+  state.students.forEach(s => {
+    if (!s.name.trim() || s.lesson === null) return;
+    const line = spm * studentPrice(s);
+    total += line;
+    html += `<div class="sumline"><span class="l">${s.name.trim()} — ${lessons[s.lesson]} (${t("durations")[s.duration]})</span><span class="r">Rs ${fmt(line)}</span></div>`;
+    if (s.trial) html += `<div class="sumline"><span class="l">↳ ${t("trial_line")}</span><span class="r">—</span></div>`;
+  });
+  html += `<div class="sumline"><span class="l">${t("sum_sessions")}</span><span class="r">${t("per_month")[t("plans")[state.plan]]}</span></div>`;
+  const nx = Object.values(state.extras).reduce((a,b)=>a+b,0);
+  if (nx) html += `<div class="sumline"><span class="l">${t("sum_extras")} (×${nx})</span><span class="r">${t("quote")}</span></div>`;
+  html += `<div class="sumline total"><span class="l">${t("sum_total")}</span><span class="r">Rs ${fmt(total)}</span></div>`;
+  box.innerHTML = html;
+}
+
+/* ===================== navigation ===================== */
+const MU_PHONE = /^(\+?230)?\s*5\d{3}\s*\d{4}$/;
+function show(step){
+  state.step = step;
+  document.querySelectorAll(".pane").forEach(p => p.classList.toggle("active", +p.dataset.pane === step));
+  document.querySelectorAll(".step").forEach(s => {
+    const n = +s.dataset.step;
+    s.classList.toggle("active", n === step);
+    s.classList.toggle("done", n < step);
+  });
+  window.scrollTo({top: 0, behavior: "smooth"});
+}
+function next(from){
+  if (from === 0){
+    let ok = true;
+    const name = document.getElementById("c-name");
+    const wa = document.getElementById("c-wa");
+    const vName = name.value.trim().length >= 2;
+    const vWa = MU_PHONE.test(wa.value.replace(/[-.]/g," "));
+    name.classList.toggle("invalid", !vName);
+    wa.classList.toggle("invalid", !vWa);
+    document.getElementById("e-c-name").style.display = vName ? "none" : "block";
+    document.getElementById("e-c-wa").style.display = vWa ? "none" : "block";
+    if (!vName || !vWa) return;
+  }
+  if (from === 1){
+    const ok = state.students.length && state.students.every(s => s.name.trim().length >= 2 && s.lesson !== null);
+    document.getElementById("e-students").style.display = ok ? "none" : "block";
+    if (!ok) return;
+  }
+  if (from === 2) buildReview();
+  show(from + 1);
+}
+function back(from){ show(from - 1); }
+
+function buildReview(){
+  const lessons = lang === "fr" ? LESSONS : LESSONS_EN;
+  let html = `
+    <div class="sumline"><span class="l">${t("rev_contact")}</span><span class="r">${document.getElementById("c-name").value.trim()} · ${document.getElementById("c-wa").value.trim()}</span></div>
+    <div class="sumline"><span class="l">${t("rev_plan")}</span><span class="r">${t("plans")[state.plan]}</span></div>
+    <div class="sumline"><span class="l">${t("rev_pay")}</span><span class="r">${t("payments")[state.payment]}</span></div>`;
+  state.students.forEach((s,i) => {
+    html += `<div class="sumline"><span class="l">${t("student")} ${i+1}</span><span class="r">${s.name.trim()} — ${lessons[s.lesson]} · ${t("modes")[s.mode]} · ${t("days")[s.day]} ${s.start}–${endTime(s)}${s.trial ? " · " + t("trial_line") : ""}</span></div>`;
+  });
+  document.getElementById("review").innerHTML = html;
+}
+
+function submitAll(){
+  /* Intégration : POST /klp/inscription/submit {customer, plan, payment, students, extras} */
+  const lessons = lang === "fr" ? LESSONS : LESSONS_EN;
+  document.querySelectorAll(".pane").forEach(p => p.classList.remove("active"));
+  document.getElementById("steps").style.display = "none";
+  document.getElementById("summary-card").style.display = "none";
   document.getElementById("done").style.display = "block";
-  window.scrollTo({ top: 0 });
-});
+  document.getElementById("d-names").textContent =
+    state.students.filter(s=>s.name.trim()).map(s => s.name.trim()).join(" · ");
+  document.getElementById("d-detail").textContent =
+    state.students.filter(s=>s.name.trim()).map(s => lessons[s.lesson] + " " + s.start).join(" · ")
+    + " — " + t("plans")[state.plan];
+  window.scrollTo({top:0});
+}
+
+/* ===================== init ===================== */
+state.students.push(blankStudent());
+renderChips("plan", I18N.fr.plans, "plan");
+renderChips("payment", I18N.fr.payments, "payment");
+renderStudents();
+renderProducts();
+renderSummary();
 </script>
 </body>
 </html>
