@@ -11,13 +11,25 @@
   - Multi-élèves par client, produits additionnels (catalogue réel du site)
   - Responsive téléphone + ordinateur. Photos/logo : CDN officiel kennyleonore.com
 
-  INTÉGRATION ODOO PRÉVUE :
-  - GET  /klp/inscription
-  - POST /klp/inscription/submit
-    payload {customer:{name,whatsapp,email}, plan, payment, students:[{name,age,
-    lesson,mode,teacher,duration,day,start,trial}], extras:[{sku,qty}]}
-    -> sale.order (subscription) brouillon : 1 ligne par élève + lignes produits,
-       student_ids, x_studio_* ; notification staff WhatsApp.
+  INTÉGRATION ODOO — MAPPING EXACT (fiche subscription réelle, 1 sub = 1 élève) :
+  - POST /klp/inscription/submit cree UNE sale.order PAR ENFANT :
+      partner_id                <- customer (cree/retrouve res.partner parent)
+      x_studio_payment_method   <- payment
+      x_studio_student          <- res.partner enfant (cree, parent lie)
+      x_studio_lesson_type_2    <- lesson (product.template)
+      x_studio_lesson_mode_1    <- mode
+      x_studio_teacher          <- teacher (vide si Indifferent)
+      x_studio_lesson_duration  <- duration (30 min / 1 h)
+      x_studio_lesson_time_1    <- start   x_studio_lesson_end_time_2 <- auto
+      x_studio_recurrence       <- recur   x_studio_lesson_day_1 <- day
+      x_studio_lesson_date / x_studio_start_date_1 <- firstDate
+      x_studio_room             <- via _room_allows_lesson (Drum->B, etc.)
+      Trial Lesson              <- trial
+      Prix unitaire ligne       <- x_studio_price_30min / x_studio_price_1hour
+                                   du type de cours (les Rs affiches ici sont
+                                   indicatifs, le serveur fait foi)
+  - extras -> lignes produits supplementaires sur la 1re subscription
+  - Resultat : devis (Quotation) pret a Confirm dans Odoo -> sessions auto.
 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -306,8 +318,6 @@
             <input id="c-mail" type="email" autocomplete="email" placeholder="vous@email.com">
           </div>
         </div>
-        <label data-i18n="f_plan">Plan d'abonnement (récurrence)</label>
-        <div class="chips" id="plan"></div>
         <label data-i18n="f_pay">Méthode de paiement</label>
         <div class="chips" id="payment"></div>
         <div class="navrow">
@@ -386,7 +396,7 @@ const I18N = {
     hero_title:"Portail d'inscription", step1:"Contact", step2:"Élèves", step3:"Options", step4:"Récapitulatif",
     p1_title:"Le parent / client", p1_sub:"Comme sur la fiche d'abonnement : client, plan et paiement.",
     f_name:"Nom complet", f_wa:"Numéro WhatsApp", f_mail:"E-mail (optionnel)",
-    f_plan:"Plan d'abonnement (récurrence)", f_pay:"Méthode de paiement",
+    f_pay:"Méthode de paiement", f_recur:"Récurrence des cours", fdate:"Date de la 1re session",
     err_name:"Indiquez votre nom.", err_wa:"Numéro mauricien attendu.",
     p2_title:"Les élèves", p2_sub:"Ajoutez un ou plusieurs enfants — chacun avec son cours, son prof et son créneau.",
     b_add:"+ Ajouter un autre enfant", err_student:"Complétez le nom et le cours de chaque élève.",
@@ -403,12 +413,12 @@ const I18N = {
     trial:"Première session d'essai", room:"Cette session se déroule en",
     days:["Indifférent","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"],
     modes:["Au studio","En ligne"], durations:["30 minutes","1 heure"],
-    plans:["Hebdomadaire","Bimensuel","Mensuel"], payments:["MCB Juice","Virement bancaire","Espèces"],
-    per_month:{Hebdomadaire:"≈ 4 sessions / mois", Bimensuel:"≈ 2 sessions / mois", Mensuel:"1 session / mois"},
-    sum_students:"élève(s)", sum_sessions:"Sessions / mois", sum_extras:"Produits & services",
+    recurs:["Hebdomadaire","Bimensuel","Mensuel","Une seule fois"], payments:["MCB Juice","Virement bancaire","Espèces"],
+    per_month:["≈ 4 sessions / mois","≈ 2 sessions / mois","1 session / mois","session unique"],
+    sum_students:"élève(s)", sum_extras:"Produits & services",
     sum_total:"Estimation mensuelle", quote:"sur devis", trial_line:"1re session d'essai offerte de décision",
     empty:"Complétez les étapes pour voir l'estimation.",
-    rev_contact:"Contact", rev_plan:"Plan", rev_pay:"Paiement",
+    rev_contact:"Contact", rev_pay:"Paiement",
     products:[
       {sku:"rental", name:"Location Studio (1 h)", desc:"Session en studio professionnel", price:null},
       {sku:"usb",    name:"USB Music Album",       desc:"Clé USB personnalisée KLP", price:null},
@@ -419,7 +429,7 @@ const I18N = {
     hero_title:"Enrollment Portal", step1:"Contact", step2:"Students", step3:"Add-ons", step4:"Review",
     p1_title:"Parent / customer", p1_sub:"Just like the subscription form: customer, plan and payment.",
     f_name:"Full name", f_wa:"WhatsApp number", f_mail:"Email (optional)",
-    f_plan:"Subscription plan (recurrence)", f_pay:"Payment method",
+    f_pay:"Payment method", f_recur:"Lesson recurrence", fdate:"First session date",
     err_name:"Please enter your name.", err_wa:"Mauritian number expected.",
     p2_title:"Students", p2_sub:"Add one or more children — each with their lesson, teacher and time slot.",
     b_add:"+ Add another child", err_student:"Complete each student's name and lesson.",
@@ -436,12 +446,12 @@ const I18N = {
     trial:"First trial session", room:"This session takes place in",
     days:["No preference","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
     modes:["At the studio","Online"], durations:["30 minutes","1 hour"],
-    plans:["Weekly","Bi-weekly","Monthly"], payments:["MCB Juice","Bank transfer","Cash"],
-    per_month:{Weekly:"≈ 4 sessions / month","Bi-weekly":"≈ 2 sessions / month",Monthly:"1 session / month"},
-    sum_students:"student(s)", sum_sessions:"Sessions / month", sum_extras:"Products & services",
+    recurs:["Weekly","Bi-weekly","Monthly","One-time"], payments:["MCB Juice","Bank transfer","Cash"],
+    per_month:["≈ 4 sessions / month","≈ 2 sessions / month","1 session / month","single session"],
+    sum_students:"student(s)", sum_extras:"Products & services",
     sum_total:"Monthly estimate", quote:"on quotation", trial_line:"first trial session",
     empty:"Complete the steps to see the estimate.",
-    rev_contact:"Contact", rev_plan:"Plan", rev_pay:"Payment",
+    rev_contact:"Contact", rev_pay:"Payment",
     products:[
       {sku:"rental", name:"Studio Rental (1 h)",   desc:"Professional studio session", price:null},
       {sku:"usb",    name:"USB Music Album",       desc:"Personalized KLP USB drive", price:null},
@@ -454,13 +464,13 @@ const LESSONS_EN = ["Piano","Guitar","Drum","Singing","Violin","Musical Awakenin
 const ROOM_RULES = {"Drum":"Studio B","Music Production":"Studio A","Méditation":"Studio A","Meditation":"Studio A"};
 const TEACHERS = ["Kenny Leonore","Rick Cupidon","Rianala A."];
 const PRICE = {30:800, 60:1500};           /* Rs / session — indicatif */
-const SESSIONS_PER_MONTH = [4,2,1];        /* hebdo, bimensuel, mensuel */
+const SESSIONS_PER_MONTH = [4,2,1,1];      /* hebdo, bimensuel, mensuel, unique */
 const TIMES = [];
 for (let h=9; h<=18; h++){ TIMES.push(String(h).padStart(2,"0")+":00"); TIMES.push(String(h).padStart(2,"0")+":30"); }
 
 let lang = "fr";
 let state = {
-  plan:0, payment:0,
+  payment:0,
   students:[], extras:{rental:0, usb:0, ring:0},
   step:0,
 };
@@ -479,7 +489,6 @@ function setLang(l){
   document.getElementById("lang-fr").setAttribute("aria-pressed", l==="fr");
   document.getElementById("lang-en").setAttribute("aria-pressed", l==="en");
   document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
-  renderChips("plan", t("plans"), "plan");
   renderChips("payment", t("payments"), "payment");
   renderStudents(); renderProducts(); renderSummary();
 }
@@ -498,7 +507,7 @@ function renderChips(elId, items, key){
 }
 
 /* ===================== élèves ===================== */
-function blankStudent(){ return {name:"", age:"", lesson:null, mode:0, teacher:0, duration:0, day:0, start:"15:00", trial:false}; }
+function blankStudent(){ return {name:"", age:"", lesson:null, mode:0, teacher:0, duration:0, day:0, start:"15:00", trial:false, recur:0, firstDate:""}; }
 function addStudent(){ state.students.push(blankStudent()); renderStudents(); renderSummary(); }
 function removeStudent(i){ state.students.splice(i,1); if(!state.students.length) state.students.push(blankStudent()); renderStudents(); renderSummary(); }
 
@@ -538,6 +547,10 @@ function renderStudents(){
         </div>
       </div>
       <div class="two">
+        <div><label>${t("f_recur")}</label><div class="chips" id="rc-${i}"></div></div>
+        <div><label>${t("fdate")}</label><input type="date" value="${s.firstDate}" onchange="state.students[${i}].firstDate=this.value"></div>
+      </div>
+      <div class="two">
         <div><label>${t("start")}</label>
           <select onchange="state.students[${i}].start=this.value; renderStudents(); renderSummary()">
             ${TIMES.map(x=>`<option ${x===s.start?"selected":""}>${x}</option>`).join("")}
@@ -553,6 +566,7 @@ function renderStudents(){
     renderLessonChips(i, lessons);
     renderSmallChips("mc-"+i, t("modes"), s, "mode");
     renderSmallChips("dc-"+i, t("durations"), s, "duration", true);
+    renderSmallChips("rc-"+i, t("recurs"), s, "recur");
   });
   state.students.forEach((s,i)=>{ const sel=document.querySelectorAll("#students .student-card")[i].querySelectorAll("select")[0]; sel.selectedIndex = s.teacher; });
 }
@@ -637,17 +651,15 @@ function renderSummary(){
   const box = document.getElementById("sumbody");
   const ready = state.students.some(s => s.name.trim() && s.lesson !== null);
   if (!ready){ box.innerHTML = `<div class="sumline"><span class="l">${t("empty")}</span></div>`; return; }
-  const spm = SESSIONS_PER_MONTH[state.plan];
   let total = 0;
   let html = "";
   state.students.forEach(s => {
     if (!s.name.trim() || s.lesson === null) return;
-    const line = spm * studentPrice(s);
+    const line = SESSIONS_PER_MONTH[s.recur] * studentPrice(s);
     total += line;
-    html += `<div class="sumline"><span class="l">${s.name.trim()} — ${lessons[s.lesson]} (${t("durations")[s.duration]})</span><span class="r">Rs ${fmt(line)}</span></div>`;
+    html += `<div class="sumline"><span class="l">${s.name.trim()} — ${lessons[s.lesson]} (${t("durations")[s.duration]}, ${t("per_month")[s.recur]})</span><span class="r">Rs ${fmt(line)}</span></div>`;
     if (s.trial) html += `<div class="sumline"><span class="l">↳ ${t("trial_line")}</span><span class="r">—</span></div>`;
   });
-  html += `<div class="sumline"><span class="l">${t("sum_sessions")}</span><span class="r">${t("per_month")[t("plans")[state.plan]]}</span></div>`;
   const nx = Object.values(state.extras).reduce((a,b)=>a+b,0);
   if (nx) html += `<div class="sumline"><span class="l">${t("sum_extras")} (×${nx})</span><span class="r">${t("quote")}</span></div>`;
   html += `<div class="sumline total"><span class="l">${t("sum_total")}</span><span class="r">Rs ${fmt(total)}</span></div>`;
@@ -693,10 +705,9 @@ function buildReview(){
   const lessons = lang === "fr" ? LESSONS : LESSONS_EN;
   let html = `
     <div class="sumline"><span class="l">${t("rev_contact")}</span><span class="r">${document.getElementById("c-name").value.trim()} · ${document.getElementById("c-wa").value.trim()}</span></div>
-    <div class="sumline"><span class="l">${t("rev_plan")}</span><span class="r">${t("plans")[state.plan]}</span></div>
     <div class="sumline"><span class="l">${t("rev_pay")}</span><span class="r">${t("payments")[state.payment]}</span></div>`;
   state.students.forEach((s,i) => {
-    html += `<div class="sumline"><span class="l">${t("student")} ${i+1}</span><span class="r">${s.name.trim()} — ${lessons[s.lesson]} · ${t("modes")[s.mode]} · ${t("days")[s.day]} ${s.start}–${endTime(s)}${s.trial ? " · " + t("trial_line") : ""}</span></div>`;
+    html += `<div class="sumline"><span class="l">${t("student")} ${i+1}</span><span class="r">${s.name.trim()} — ${lessons[s.lesson]} · ${t("modes")[s.mode]} · ${t("recurs")[s.recur]} · ${t("days")[s.day]} ${s.start}–${endTime(s)}${s.firstDate ? " · " + s.firstDate : ""}${s.trial ? " · " + t("trial_line") : ""}</span></div>`;
   });
   document.getElementById("review").innerHTML = html;
 }
@@ -712,13 +723,12 @@ function submitAll(){
     state.students.filter(s=>s.name.trim()).map(s => s.name.trim()).join(" · ");
   document.getElementById("d-detail").textContent =
     state.students.filter(s=>s.name.trim()).map(s => lessons[s.lesson] + " " + s.start).join(" · ")
-    + " — " + t("plans")[state.plan];
+    + " — " + t("payments")[state.payment];
   window.scrollTo({top:0});
 }
 
 /* ===================== init ===================== */
 state.students.push(blankStudent());
-renderChips("plan", I18N.fr.plans, "plan");
 renderChips("payment", I18N.fr.payments, "payment");
 renderStudents();
 renderProducts();
