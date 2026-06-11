@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!--
+  KLP STUDIO — PROTOTYPE B.2 : Inscription en ligne (page publique)
+  Rendu statique pour validation visuelle (ouvrir dans un navigateur, mode mobile).
+
+  INTÉGRATION ODOO PRÉVUE :
+  - GET  /klp/inscription        -> controller public (website)
+  - POST /klp/inscription/submit -> crée un crm.lead (ou res.partner draft +
+                                    demande), notifie le staff sur WhatsApp.
+  - Le choix du cours pilote la salle côté serveur (_room_allows_lesson) :
+    Drum -> Studio B, Music Production / Méditation -> Studio A.
+  - Lien partagé par WhatsApp / réseaux / site KLP.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KLP Studio — Inscription en ligne</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Albert+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#2B2233; --paper:#FAF7F2; --plum:#714B67; --plum-deep:#5A3B52;
+    --brass:#C99B3F; --sage:#3E7C5B; --line:#E6DFD6; --muted:#7A7068;
+    --card:#FFFFFF; --err:#B4452F; --radius:18px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    font-family:'Albert Sans',system-ui,sans-serif; background:var(--paper);
+    color:var(--ink); min-height:100vh; display:flex; justify-content:center;
+  }
+  .app{width:100%; max-width:430px; padding:0 18px 60px}
+  header{padding:26px 2px 6px; display:flex; align-items:baseline; gap:10px}
+  .wordmark{font-family:'Fraunces',serif; font-weight:650; font-size:1.15rem}
+  .wordmark .note{color:var(--brass)}
+  .eyebrow{font-size:.68rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--plum)}
+  h1{font-family:'Fraunces',serif; font-weight:650; font-size:1.7rem; line-height:1.15; padding:10px 2px 4px}
+  .lede{color:var(--muted); font-size:.92rem; padding:0 2px 20px}
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 18px 20px; margin-bottom:16px; box-shadow:0 8px 20px rgba(43,34,51,.05);
+  }
+  .card h2{
+    font-size:.75rem; font-weight:700; letter-spacing:.13em; text-transform:uppercase;
+    color:var(--plum); padding-bottom:14px;
+  }
+  label{display:block; font-size:.84rem; font-weight:600; padding:10px 0 6px}
+  label:first-of-type{padding-top:0}
+  input, select{
+    width:100%; font:inherit; font-size:.95rem; padding:12px 13px;
+    border:1.5px solid var(--line); border-radius:11px; background:#FDFCFA; color:var(--ink);
+  }
+  input:focus-visible, select:focus-visible{outline:3px solid var(--brass); outline-offset:1px; border-color:var(--plum)}
+  input.invalid{border-color:var(--err)}
+  .hint{font-size:.76rem; color:var(--muted); padding-top:4px}
+  .error{font-size:.78rem; color:var(--err); padding-top:4px; display:none}
+
+  .chips{display:flex; flex-wrap:wrap; gap:9px}
+  .chip{
+    font:inherit; font-weight:600; font-size:.9rem; padding:10px 14px;
+    border-radius:12px; border:1.5px solid var(--line); background:#FDFCFA;
+    color:var(--ink); cursor:pointer; transition:all .15s;
+  }
+  .chip[aria-pressed="true"]{background:var(--plum); border-color:var(--plum); color:#fff}
+  .chip:focus-visible{outline:3px solid var(--brass); outline-offset:2px}
+  .chip:active{transform:scale(.97)}
+  .room-hint{
+    display:none; margin-top:11px; font-size:.8rem; color:var(--plum);
+    background:#F1E9EF; border-radius:9px; padding:8px 11px;
+  }
+
+  .send{
+    width:100%; font:inherit; font-weight:700; font-size:1.02rem; color:#fff;
+    background:var(--plum); border:0; border-radius:14px; padding:16px; margin-top:6px;
+    cursor:pointer; box-shadow:0 8px 20px rgba(113,75,103,.35); transition:background .15s;
+  }
+  .send:active{background:var(--plum-deep)}
+  .send:focus-visible{outline:3px solid var(--brass); outline-offset:2px}
+  .privacy{font-size:.74rem; color:var(--muted); text-align:center; padding-top:12px}
+
+  /* ----- ticket de bienvenue (succès) ----- */
+  .done{display:none; text-align:center; padding-top:8px}
+  .done .check{
+    width:54px; height:54px; border-radius:50%; background:var(--sage); color:#fff;
+    font-size:1.6rem; line-height:54px; margin:0 auto 14px;
+  }
+  .done p{color:var(--muted); font-size:.93rem; padding:6px 4px 22px}
+  .ticket{
+    position:relative; background:var(--card); border:1px solid var(--line);
+    border-radius:var(--radius); padding:18px 20px; text-align:left;
+    box-shadow:0 10px 24px rgba(43,34,51,.07);
+  }
+  .ticket::before,.ticket::after{
+    content:""; position:absolute; width:18px; height:18px; border-radius:50%;
+    background:var(--paper); border:1px solid var(--line); top:50%; transform:translateY(-50%);
+  }
+  .ticket::before{left:-10px} .ticket::after{right:-10px}
+  .ticket .tag{
+    display:inline-block; font-size:.66rem; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--sage); background:#E8F1EC;
+    padding:4px 9px; border-radius:99px; margin-bottom:10px;
+  }
+  .ticket .big{font-family:'Fraunces',serif; font-weight:650; font-size:1.25rem}
+  .ticket .sub{color:var(--muted); font-size:.9rem; margin-top:3px}
+  .footer-note{padding-top:34px; text-align:center; color:var(--muted); font-size:.78rem}
+
+  @media (prefers-reduced-motion: no-preference){
+    .card{animation:rise .4s cubic-bezier(.2,.8,.3,1) both}
+    .card:nth-of-type(2){animation-delay:.05s}
+    .card:nth-of-type(3){animation-delay:.1s}
+    @keyframes rise{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <span class="wordmark">KLP<span class="note"> ♪ </span>Studio</span>
+    <span class="eyebrow">Inscription</span>
+  </header>
+
+  <div id="form-screen">
+    <h1>Inscrire un élève</h1>
+    <p class="lede">Remplissez ce formulaire — notre équipe vous recontacte sur WhatsApp sous 24&nbsp;h pour confirmer le créneau.</p>
+
+    <form id="f" novalidate>
+      <div class="card">
+        <h2>L'élève</h2>
+        <label for="s-name">Nom complet de l'élève</label>
+        <input id="s-name" required autocomplete="name" placeholder="Ex. Marin Lebon">
+        <div class="error" id="e-s-name">Indiquez le nom de l'élève.</div>
+        <label for="s-age">Âge</label>
+        <input id="s-age" type="number" min="3" max="99" inputmode="numeric" placeholder="Ex. 9">
+      </div>
+
+      <div class="card">
+        <h2>Le parent / contact</h2>
+        <label for="p-name">Votre nom</label>
+        <input id="p-name" required placeholder="Ex. Sarah Lebon">
+        <div class="error" id="e-p-name">Indiquez votre nom.</div>
+        <label for="p-wa">Numéro WhatsApp</label>
+        <input id="p-wa" type="tel" required inputmode="tel" placeholder="+230 5XXX XXXX">
+        <div class="hint">C'est ici que vous recevrez la confirmation.</div>
+        <div class="error" id="e-p-wa">Numéro mauricien attendu (ex. +230 5755 2925).</div>
+      </div>
+
+      <div class="card">
+        <h2>Le cours</h2>
+        <label>Instrument / activité</label>
+        <div class="chips" id="lessons"></div>
+        <div class="room-hint" id="room-hint"></div>
+        <div class="error" id="e-lesson">Choisissez un cours.</div>
+
+        <label style="padding-top:16px">Mode</label>
+        <div class="chips" id="modes"></div>
+
+        <label style="padding-top:16px">Durée souhaitée</label>
+        <div class="chips" id="durations"></div>
+
+        <label for="day" style="padding-top:16px">Jour préféré</label>
+        <select id="day">
+          <option>Indifférent</option><option>Lundi</option><option>Mardi</option>
+          <option>Mercredi</option><option>Jeudi</option><option>Vendredi</option>
+          <option>Samedi</option>
+        </select>
+      </div>
+
+      <button class="send" type="submit">Envoyer l'inscription</button>
+      <p class="privacy">Vos informations ne servent qu'à organiser le cours d'essai.</p>
+    </form>
+  </div>
+
+  <!-- ----- SUCCÈS ----- -->
+  <div class="done" id="done">
+    <div class="check">✓</div>
+    <h1>Inscription envoyée</h1>
+    <p>Bienvenue à KLP Studio&nbsp;! 🎶<br>Nous vous écrivons sur WhatsApp sous 24&nbsp;h.</p>
+    <div class="ticket">
+      <span class="tag">Demande reçue</span>
+      <div class="big" id="d-student">—</div>
+      <div class="sub" id="d-lesson">—</div>
+    </div>
+  </div>
+
+  <p class="footer-note">KLP Studio · Mapou, Maurice · +230 5980-4605</p>
+</div>
+
+<script>
+const LESSONS = ["Piano","Guitare","Drum","Chant","Violon","Éveil musical","Music Production","Méditation"];
+const ROOM_RULES = { "Drum": "Studio B", "Music Production": "Studio A", "Méditation": "Studio A" };
+const MODES = ["Au studio","En ligne"];
+const DURATIONS = ["30 minutes","1 heure"];
+
+function chipGroup(elId, items, preselect){
+  const wrap = document.getElementById(elId);
+  items.forEach((label, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = label;
+    b.setAttribute("aria-pressed", preselect === i ? "true" : "false");
+    b.addEventListener("click", () => {
+      wrap.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed","false"));
+      b.setAttribute("aria-pressed","true");
+      if (elId === "lessons") lessonPicked(label);
+    });
+    wrap.appendChild(b);
+  });
+}
+chipGroup("lessons", LESSONS);
+chipGroup("modes", MODES, 0);
+chipGroup("durations", DURATIONS, 0);
+
+function lessonPicked(label){
+  const hint = document.getElementById("room-hint");
+  if (ROOM_RULES[label]){
+    hint.style.display = "block";
+    hint.textContent = "♪ Ce cours se déroule en " + ROOM_RULES[label] + ".";
+  } else {
+    hint.style.display = "none";
+  }
+  document.getElementById("e-lesson").style.display = "none";
+}
+
+function pressed(elId){
+  const b = document.querySelector("#" + elId + ' .chip[aria-pressed="true"]');
+  return b ? b.textContent : null;
+}
+
+const MU_PHONE = /^(\+?230)?\s*5\d{3}\s*\d{4}$/;
+
+document.getElementById("f").addEventListener("submit", e => {
+  e.preventDefault();
+  let ok = true;
+  const checks = [
+    ["s-name", v => v.trim().length >= 2],
+    ["p-name", v => v.trim().length >= 2],
+    ["p-wa",  v => MU_PHONE.test(v.replace(/[-.]/g, " "))],
+  ];
+  checks.forEach(([id, test]) => {
+    const input = document.getElementById(id);
+    const valid = test(input.value);
+    input.classList.toggle("invalid", !valid);
+    document.getElementById("e-" + id).style.display = valid ? "none" : "block";
+    if (!valid) ok = false;
+  });
+  const lesson = pressed("lessons");
+  if (!lesson){
+    document.getElementById("e-lesson").style.display = "block";
+    ok = false;
+  }
+  if (!ok){ window.scrollTo({top: 0, behavior: "smooth"}); return; }
+
+  /* Intégration : POST /klp/inscription/submit {student, parent, whatsapp,
+     lesson, mode, duration, preferred_day} -> crm.lead + notif staff WhatsApp */
+  document.getElementById("d-student").textContent = document.getElementById("s-name").value.trim();
+  document.getElementById("d-lesson").textContent =
+    lesson + " · " + pressed("modes") + " · " + pressed("durations")
+    + (ROOM_RULES[lesson] ? " · " + ROOM_RULES[lesson] : "");
+  document.getElementById("form-screen").style.display = "none";
+  document.getElementById("done").style.display = "block";
+  window.scrollTo({ top: 0 });
+});
+</script>
+</body>
+</html>
