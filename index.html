@@ -148,3 +148,282 @@ main{padding:44px 0 160px}
 [data-theme="dark"] .checks span{color:var(--gold)}
 .slots{display:flex;flex-direction:column;gap:10px;max-height:312px;overflow-y:auto;padding-right:2px}
 .slot{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-weight:600;font-size:.95rem;
+  padding:14px;text-align:center;font-variant-numeric:tabular-nums;
+  transition:background .15s,border-color .15s,color .15s}
+.slot:hover{border-color:color-mix(in srgb,var(--red) 40%,transparent);color:var(--red);background:var(--field)}
+.slot[aria-pressed="true"]{color:#fff;border-color:var(--red);background:var(--red);box-shadow:0 8px 18px -8px rgba(200,16,46,.5)}
+.empty{color:var(--muted);font-size:.86rem;text-align:center;padding:30px 8px;line-height:1.65}
+.confirm{width:100%;border:0;border-radius:12px;padding:16px;font-weight:800;font-size:.97rem;letter-spacing:.02em;color:#fff;
+  background:var(--red);margin-top:20px;box-shadow:0 10px 24px -12px rgba(200,16,46,.6);
+  transition:background .18s,transform .12s,box-shadow .18s}
+.confirm:hover:not(:disabled){background:var(--red-deep);box-shadow:0 14px 28px -12px rgba(200,16,46,.65)}
+.confirm:active:not(:disabled){transform:translateY(1px)}
+.confirm:disabled{cursor:not-allowed;opacity:.4;background:#9aa0a6;box-shadow:none}
+.alt{display:block;text-align:center;margin-top:16px;font-size:.85rem;color:var(--red);font-weight:600;text-decoration:underline;text-underline-offset:4px}
+.sideCard{position:sticky;top:84px}
+
+/* mobile sticky confirm bar */
+.mbar{display:none}
+@media(max-width:879px){
+  .sideCard{position:static}
+  .mbar{display:block;position:fixed;left:0;right:0;bottom:0;z-index:45;
+    background:linear-gradient(to top,var(--bg) 70%,transparent);padding:22px 16px 16px}
+  .mbar .in{max-width:420px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;
+    box-shadow:var(--hi),0 -6px 26px -12px rgba(0,0,0,.45)}
+  .mbar .pk{text-align:center;font-size:.85rem;color:var(--muted);padding:2px 0 9px;min-height:1.3em}
+  .mbar .pk b{color:var(--red)}
+  .mbar .confirm{margin-top:0}
+}
+
+/* success */
+.done{display:none;text-align:center;padding:14px 0}
+.done .ck{width:66px;height:66px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:1.7rem;background:var(--ok);
+  box-shadow:0 12px 26px -12px rgba(31,122,77,.6);
+  animation:pop .5s var(--press)}
+@keyframes pop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
+.done h2{font-family:'Bricolage Grotesque',sans-serif;font-size:1.55rem;padding-bottom:5px}
+.done .lead{color:var(--muted);font-size:.92rem;padding-bottom:20px}
+.meet{max-width:500px;margin:0 auto;text-align:left}
+.mrow{display:grid;grid-template-columns:92px 1fr;gap:12px;padding:12px 2px;border-top:1px solid var(--line);font-size:.92rem}
+.mrow .k{color:var(--muted);font-weight:700}
+.mrow s{color:var(--muted)}
+.mrow .new{font-weight:800;color:var(--ok)}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition-duration:.001ms !important;animation-duration:.001ms !important}
+  .day.av:hover,.slot:hover,.confirm:hover,.tbtn:hover,.navb:hover{transform:none}
+  .card{transition:none}
+  .confirm::after{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- shared SVG defs for the logo gradients -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="klpRed" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E12942"/><stop offset="1" stop-color="#9C0A23"/>
+    </linearGradient>
+    <linearGradient id="klpGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E6C24E"/><stop offset="1" stop-color="#A9851A"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="wrap"><div class="toprow">
+    <!-- Round KLP Studio logo (inline SVG), identical to the enrollment module. For Odoo, swap for:
+         <img class="klp-logo" src="/klp_studio/static/src/img/klp_logo.png" alt="KLP Studio"/> -->
+    <svg class="klp-logo" width="48" height="48" viewBox="0 0 120 120" role="img" aria-label="KLP Studio">
+      <circle class="disc" cx="60" cy="60" r="58"/>
+      <circle class="ring" cx="60" cy="60" r="57"/>
+      <text x="60" y="66" text-anchor="middle" font-family="'Bricolage Grotesque',sans-serif" font-weight="800" font-size="44" letter-spacing="1">
+        <tspan fill="url(#klpRed)">K</tspan><tspan fill="#17161A">L</tspan><tspan fill="url(#klpGold)">P</tspan>
+      </text>
+      <text x="60" y="88" text-anchor="middle" font-family="'Bricolage Grotesque',sans-serif" font-weight="600" font-size="12" letter-spacing="5" fill="#17161A">STUDIO</text>
+    </svg>
+    <div class="brand">
+      <div class="l1"><span class="k">K</span><span class="l">L</span><span class="p">P</span> STUDIO</div>
+      <div class="l2">KENNY LEONORE PRODUCTIONS</div>
+    </div>
+    <button class="tbtn" id="tt" onclick="toggleTheme()" aria-label="Toggle dark mode">
+      <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    </button>
+  </div></div>
+  <div class="tri"></div>
+</header>
+
+<div class="band">
+  <span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span>
+  <h1>Choose a new date &amp; time</h1>
+  <p>KLP STUDIO · MAPOU</p>
+</div>
+
+<main class="wrap">
+  <div class="grid" id="grid">
+    <!-- LEFT -->
+    <div class="card" id="left">
+      <div class="session">
+        <span class="tag">SESSION TO RESCHEDULE</span>
+        <div class="stu">Jaden Harel</div>
+        <div class="ln">Drum · Rick Cupidon · Studio B</div>
+        <div class="wh">Currently <s>Fri, June 13 · 12:00 – 12:30</s></div>
+      </div>
+
+      <p class="rolenote" id="rolenote">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        <span id="rolenote-txt">Only slots where the teacher and the studio are free, within school hours, are shown.</span>
+      </p>
+
+      <div class="cal-head">
+        <button class="navb" id="pm" onclick="navMonth(-1)" aria-label="Previous month">‹</button>
+        <b id="mtitle">—</b>
+        <button class="navb" id="nm" onclick="navMonth(1)" aria-label="Next month">›</button>
+      </div>
+      <div class="cal" id="cal" role="grid" aria-label="Available days"></div>
+      <div class="legend">
+        <span><i></i>available slots</span>
+        <span><s>13</s>&nbsp;current session</span>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div>
+      <div class="card sideCard side" id="side">
+        <h3>NEW SLOT</h3>
+        <div class="dt" id="dtitle">—</div>
+        <div class="checks" id="checks"></div>
+        <div class="slots" id="slots" aria-live="polite"></div>
+        <button class="confirm" id="cbtn" disabled onclick="doConfirm()">CONFIRM THIS SLOT</button>
+        <a class="alt" href="https://wa.me/23059804605">No slot works for you? Message us</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUCCESS -->
+  <div class="card done" id="done">
+    <div class="ck" aria-hidden="true">✓</div>
+    <h2>This session is rescheduled</h2>
+    <p class="lead">A confirmation is on its way to both parties on WhatsApp.</p>
+    <div class="meet">
+      <div class="mrow"><span class="k">What</span><span>Drum — Jaden Harel</span></div>
+      <div class="mrow"><span class="k">Teacher</span><span>Rick Cupidon · Studio B</span></div>
+      <div class="mrow"><span class="k">When</span><span><s id="d-old">—</s><br><span class="new" id="d-new">—</span></span></div>
+    </div>
+    <a class="alt" href="https://wa.me/23059804605">Any question? Message us on WhatsApp</a>
+  </div>
+</main>
+
+<!-- MOBILE confirm bar -->
+<div class="mbar" id="mbar"><div class="in">
+  <div class="pk" id="mpk">Pick a day on the calendar</div>
+  <button class="confirm" id="cbtn2" disabled onclick="doConfirm()">CONFIRM THIS SLOT</button>
+</div></div>
+
+<script>
+/* ===================== CROSS-AVAILABILITY ENGINE =====================
+   In production these calendars come from Odoo (calendar.event) via the
+   JSON /slots route. Here: realistic demo data. The ROLE is fixed by the
+   token server-side — there is NO parent/teacher switch in the UI.        */
+const SCHOOL  = { open:"09:00", close:"19:00", closedDows:[0] };  /* Sunday closed */
+const WINDOW  = { from:"2026-06-14", to:"2026-07-12" };           /* J+1 .. J+35 */
+const SESSION = { date:"2026-06-13", time:"12:00", dur:30, room:"Studio B" };
+const ROLE    = "parent";  /* production: derived from the token (parent | teacher) */
+
+/* Teacher's calendar (Rick Cupidon) — his other lessons */
+function busyTeacher(d){ const w=d.getDay(); const L=[["12:30","14:00"]];
+  if(w===2)L.push(["16:00","18:00"]); if(w===6)L.push(["09:00","10:30"]); if(w===4)L.push(["09:00","11:00"]); return L; }
+/* Compatible room (Studio B) occupied by other sessions */
+function busyRoom(d){ const w=d.getDay(); const L=[["10:00","11:00"]];
+  if(w===3)L.push(["14:00","17:00"]); if(w===6)L.push(["15:00","19:00"]); return L; }
+/* Student's calendar (Jaden) — other lessons / family constraints */
+function busyStudent(d){ const w=d.getDay(); const L=[];
+  if(w===1)L.push(["15:00","17:00"]); if(w===5)L.push(["09:00","12:00"]); if(w===2)L.push(["09:00","10:00"]); return L; }
+
+const toMin = s => { const [h,m]=s.split(":").map(Number); return h*60+m; };
+const toHM  = v => String(Math.floor(v/60)).padStart(2,"0")+":"+String(v%60).padStart(2,"0");
+const overlaps = (a0,a1,iv) => iv.some(([b0,b1]) => a0 < toMin(b1) && toMin(b0) < a1);
+
+function slotsFor(isoStr){
+  const [y,m,dd] = isoStr.split("-").map(Number);
+  const d = new Date(y, m-1, dd);
+  if (isoStr < WINDOW.from || isoStr > WINDOW.to) return [];
+  if (SCHOOL.closedDows.includes(d.getDay())) return [];
+  const busy = (ROLE === "parent")
+    ? [...busyTeacher(d), ...busyRoom(d)]    /* parent : teacher ∩ room */
+    : [...busyStudent(d), ...busyRoom(d)];   /* teacher: student ∩ room */
+  const out = [];
+  for (let v = toMin(SCHOOL.open); v + SESSION.dur <= toMin(SCHOOL.close); v += 30)
+    if (!overlaps(v, v + SESSION.dur, busy)) out.push(toHM(v));
+  return out;
+}
+/* ==================================================================== */
+
+const DOWS   = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const WD     = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const OLD_LABEL = "Fri, June 13 · 12:00 – 12:30";
+const MIN_VIEW = {y:2026,m:5}, MAX_VIEW = {y:2026,m:6};
+
+let view={y:2026,m:5}, selDay=null, selTime=null;
+
+const iso  = (y,m,d) => y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+const endT = x => toHM(toMin(x)+SESSION.dur);
+function fmtDay(s){ const [y,m,d]=s.split("-").map(Number); const dt=new Date(y,m-1,d);
+  return WD[dt.getDay()]+", "+MONTHS[m-1]+" "+d; }
+
+function toggleTheme(){const h=document.documentElement;h.setAttribute("data-theme",h.getAttribute("data-theme")==="dark"?"light":"dark");}
+
+function navMonth(d){ view.m+=d; if(view.m<0){view.m=11;view.y--;} if(view.m>11){view.m=0;view.y++;} renderCal(); }
+
+function renderCal(){
+  document.getElementById("mtitle").textContent = MONTHS[view.m]+" "+view.y;
+  document.getElementById("pm").disabled = (view.y===MIN_VIEW.y && view.m===MIN_VIEW.m);
+  document.getElementById("nm").disabled = (view.y===MAX_VIEW.y && view.m===MAX_VIEW.m);
+  const cal=document.getElementById("cal"); cal.innerHTML="";
+  DOWS.forEach(d=>{ const e=document.createElement("div"); e.className="dow"; e.textContent=d; cal.appendChild(e); });
+  const lead=(new Date(view.y,view.m,1).getDay()+6)%7;
+  for(let i=0;i<lead;i++) cal.appendChild(document.createElement("div"));
+  const days=new Date(view.y,view.m+1,0).getDate();
+  for(let d=1;d<=days;d++){
+    const key=iso(view.y,view.m,d);
+    const b=document.createElement("button"); b.type="button"; b.className="day"; b.textContent=d;
+    if(key===SESSION.date){ b.classList.add("old"); b.setAttribute("aria-label","Current session, "+fmtDay(key)); b.disabled=true; }
+    else if(slotsFor(key).length){
+      b.classList.add("av");
+      b.setAttribute("aria-label",fmtDay(key)+", slots available");
+      if(key===selDay){ b.classList.add("sel"); b.setAttribute("aria-current","date"); }
+      b.onclick=()=>{ selDay=key; selTime=null; renderCal(); renderSlots(); refresh(); };
+    } else b.disabled=true;
+    cal.appendChild(b);
+  }
+}
+
+function renderSlots(){
+  const box=document.getElementById("slots"), title=document.getElementById("dtitle"), checks=document.getElementById("checks");
+  const second = ROLE==="parent" ? "Teacher free" : "Student free";
+  checks.innerHTML = '<span>✓ School 09:00–19:00</span><span>✓ '+second+'</span><span>✓ Studio B free</span>';
+  if(!selDay){ title.textContent="Pick a day on the calendar"; box.innerHTML='<div class="empty">Compatible slots will appear here.</div>'; return; }
+  title.textContent=fmtDay(selDay);
+  const list=slotsFor(selDay);
+  if(!list.length){ box.innerHTML='<div class="empty">No compatible slot that day — try another one.</div>'; return; }
+  box.innerHTML="";
+  list.forEach(x=>{
+    const b=document.createElement("button"); b.type="button"; b.className="slot";
+    b.textContent=x+" – "+endT(x);
+    b.setAttribute("aria-pressed", x===selTime);
+    b.onclick=()=>{ selTime=x; renderSlots(); refresh(); };
+    box.appendChild(b);
+  });
+}
+
+function refresh(){
+  const ok=!!(selDay&&selTime);
+  document.getElementById("cbtn").disabled=!ok;
+  document.getElementById("cbtn2").disabled=!ok;
+  document.getElementById("mpk").innerHTML = ok
+    ? '<b>'+fmtDay(selDay)+' · '+selTime+' – '+endT(selTime)+'</b>'
+    : 'Pick a day on the calendar';
+}
+
+function doConfirm(){
+  if(!selDay||!selTime) return;
+  /* POST /klp/reschedule/<token>/confirm { slot_start: selDay+"T"+selTime }
+     -> atomic write on the existing calendar.event + anti-collision re-check. */
+  document.getElementById("left").style.display="none";
+  document.getElementById("side").style.display="none";
+  document.getElementById("mbar").style.display="none";
+  document.getElementById("grid").style.display="block";
+  document.getElementById("d-old").textContent=OLD_LABEL;
+  document.getElementById("d-new").textContent=fmtDay(selDay)+" · "+selTime+" – "+endT(selTime);
+  document.getElementById("done").style.display="block";
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+renderCal(); renderSlots(); refresh();
+</script>
+</body>
+</html>
